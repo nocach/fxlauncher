@@ -1,5 +1,6 @@
 package fxlauncher;
 
+import java.net.HttpURLConnection;
 import javafx.application.Application;
 
 import javax.net.ssl.*;
@@ -149,12 +150,24 @@ public abstract class AbstractLauncher<APP>  {
     private InputStream openDownloadStream(URI uri) throws IOException {
         if (uri.getScheme().equals("file")) return Files.newInputStream(new File(uri.getPath()).toPath());
 
-        URLConnection connection = uri.toURL().openConnection();
+        HttpURLConnection connection =  (HttpURLConnection) uri.toURL().openConnection();
         if (uri.getUserInfo() != null) {
             byte[] payload = uri.getUserInfo().getBytes(StandardCharsets.UTF_8);
             String encoded = Base64.getEncoder().encodeToString(payload);
             connection.setRequestProperty("Authorization", String.format("Basic %s", encoded));
         }
+
+        int status = connection.getResponseCode();
+        if (status != HttpURLConnection.HTTP_OK) {
+            if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                    || status == HttpURLConnection.HTTP_MOVED_PERM
+                    || status == HttpURLConnection.HTTP_SEE_OTHER) {
+                String newUrl = connection.getHeaderField("Location");
+                connection = (HttpURLConnection) new URL(newUrl).openConnection();
+                return connection.getInputStream();
+            }
+        }
+
         return connection.getInputStream();
     }
 
