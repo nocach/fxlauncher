@@ -1,6 +1,10 @@
 package fxlauncher;
 
+import com.github.markusbernhardt.proxy.ProxySearch;
 import com.sun.javafx.application.PlatformImpl;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.SocketAddress;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -144,6 +148,7 @@ public class Launcher extends Application {
             Thread.currentThread().setName("FXLauncher-Thread");
             try {
                 superLauncher.updateManifest();
+                resolveNetworkProxy();
                 createUpdateWrapper();
                 filesUpdated[0] = superLauncher.syncFiles();
             } catch (Exception ex) {
@@ -162,6 +167,38 @@ public class Launcher extends Application {
             }
 
         }).start();
+    }
+
+    private void resolveNetworkProxy() throws java.net.MalformedURLException {
+        URI fxAppURI = superLauncher.getManifest().getFXAppURI();
+        String urlString = fxAppURI.toURL().toString();
+        log.info("Resolving the network proxy for the app url: " + urlString);
+        ProxySearch proxySearch = new ProxySearch();
+        proxySearch.addStrategy(ProxySearch.Strategy.BROWSER);
+        java.net.ProxySelector proxySelector = proxySearch.getProxySelector();
+        java.net.ProxySelector.setDefault(proxySelector);
+        URI home = fxAppURI;
+        List<Proxy> proxyList = proxySelector.select(home);
+        if (proxyList != null && !proxyList.isEmpty()) {
+            for (Proxy proxy : proxyList) {
+                if(proxy.type().equals(Proxy.Type.DIRECT)){
+                    log.info("No Proxy is required to hit this app url. So not setting any proxy environment variables.");
+                    break;
+                }else{
+                    SocketAddress address = proxy.address();
+                    if (address instanceof InetSocketAddress) {
+                        String host = ((InetSocketAddress) address).getHostName();
+                        String port = Integer.toString(((InetSocketAddress) address).getPort());
+                        log.info(String.format("Proxy for this host: %s:%s",host,port));
+                        log.info(String.format("Setting the env variable %s as %s","http.proxyHost",host));
+                        System.setProperty("http.proxyHost", host);
+                        log.info(String.format("Setting the env variable %s as %s","http.proxyPort",port));
+                        System.setProperty("http.proxyPort", port);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     private void launchAppFromManifest(boolean showWhatsnew) throws Exception {
