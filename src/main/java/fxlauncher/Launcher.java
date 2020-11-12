@@ -174,8 +174,9 @@ public class Launcher extends Application {
         String urlString = fxAppURI.toURL().toString();
         log.info("Resolving the network proxy for the app url: " + urlString);
         ProxySearch proxySearch = new ProxySearch();
-        proxySearch.addStrategy(ProxySearch.Strategy.BROWSER);
+        proxySearch.addStrategy(ProxySearch.Strategy.OS_DEFAULT);
         java.net.ProxySelector proxySelector = proxySearch.getProxySelector();
+        if (proxySelector == null) return;
         java.net.ProxySelector.setDefault(proxySelector);
         URI home = fxAppURI;
         List<Proxy> proxyList = proxySelector.select(home);
@@ -273,11 +274,7 @@ public class Launcher extends Application {
 
     private void startApplication() throws Exception {
         if (app != null) {
-            final LauncherParams params = new LauncherParams(getParameters(), superLauncher.getManifest());
-            app.getParameters().getNamed().putAll(params.getNamed());
-            app.getParameters().getRaw().addAll(params.getRaw());
-            app.getParameters().getUnnamed().addAll(params.getUnnamed());
-
+            com.sun.javafx.application.ParametersImpl.registerParameters(app, new LauncherParams(getParameters(), superLauncher.getManifest()));
             PlatformImpl.setApplicationName(app.getClass());
             superLauncher.setPhase("Application Init");
             app.start(primaryStage);
